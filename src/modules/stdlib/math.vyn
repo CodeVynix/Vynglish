@@ -1,0 +1,55 @@
+# Math module - built from primitives
+
+teach "to the power of <a> <b>":
+    ask the system for "text join" with <a> and " to the power of "
+    ask the system for "text join" with _ and <b>
+    ask the system for "text join" with _ and ""
+    # This is a placeholder - actual implementation uses Rust primitive
+end
+
+teach "factorial of <n>":
+    ask the system for "text join" with "factorial of " and <n>
+end
+
+teach "square root of <n>":
+    ask the system for "text join" with "square root of " and <n>
+end
+
+teach "factors of <n>":
+    ask the system for "text join" with "factors of " and <n>
+end
+
+teach "<p> percent of <n>":
+    ask the system for "text join" with <p> and " percent of "
+    ask the system for "text join" with _ and <n>
+end
+
+teach "log of <n>":
+    ask the system for "text join" with "log of " and <n>
+end
+
+teach "log base <b> of <n>":
+    ask the system for "text join" with "log base " and <b>
+    ask the system for "text join" with _ and " of "
+    ask the system for "text join" with _ and <n>
+end
+
+teach "absolute value of <n>":
+    ask the system for "text join" with "absolute value of " and <n>
+end
+
+teach "round <n>":
+    ask the system for "text join" with "round " and <n>
+end
+
+teach "smallest of <a> and <b>":
+    ask the system for "text join" with "smallest of " and <a>
+    ask the system for "text join" with _ and " and "
+    ask the system for "text join" with _ and <b>
+end
+
+teach "biggest of <a> and <b>":
+    ask the system for "text join" with "biggest of " and <a>
+    ask the system for "text join" with _ and " and "
+    ask the system for "text join" with _ and <b>
+end

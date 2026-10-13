@@ -1,0 +1,741 @@
+[package]
+name = "vynglish-builtins"
+version = "0.1.0"
+
+[[commands]]
+name = "print"
+module = "core"
+pattern = "print <rest...>"
+handler = "core::print"
+description = "Show text, a value, or the result of a command on the screen. Quoted text is shown exactly as written; a bare word shows its variable when it has one."
+usage = "print <text>"
+example = "print \"hello world\"\nprint name\nprint 23 divided by 6"
+error_msg = "Usage: print <text>"
+
+[[commands]]
+name = "ask"
+module = "core"
+pattern = 'ask "<question>" and remember it as <name>'
+handler = "core::ask"
+description = "Read a line of input from the user and store it in a variable."
+usage = 'ask "<question>" and remember it as <name>'
+example = 'ask "What is your name?" and remember it as name'
+error_msg = 'Usage: ask "<question>" and remember it as <name>'
+
+[[commands]]
+name = "set"
+module = "core"
+pattern = "set <name> to <value..>"
+handler = "core::set"
+description = "Create or change a variable."
+usage = "set <name> to <value>"
+example = "set x to 42\nset name to \"Alice\""
+error_msg = "Usage: set <name> to <value>"
+
+[[commands]]
+name = "plus"
+module = "core"
+pattern = "<a> plus <b>"
+handler = "core::plus"
+description = "Add two numbers."
+usage = "<a> plus <b>"
+example = "set result to 2 plus 3"
+error_msg = "Usage: <number> plus <number>"
+
+[[commands]]
+name = "minus"
+module = "core"
+pattern = "<a> minus <b>"
+handler = "core::minus"
+description = "Subtract b from a."
+usage = "<a> minus <b>"
+example = "set result to 10 minus 3"
+error_msg = "Usage: <number> minus <number>"
+
+[[commands]]
+name = "times"
+module = "core"
+pattern = "<a> times <b>"
+handler = "core::times"
+description = "Multiply two numbers."
+usage = "<a> times <b>"
+example = "set result to 6 times 7"
+error_msg = "Usage: <number> times <number>"
+
+[[commands]]
+name = "divided by"
+module = "core"
+pattern = "<a> divided by <b>"
+handler = "core::divided_by"
+description = "Divide a by b. Division by zero gives undefined."
+usage = "<a> divided by <b>"
+example = "set result to 10 divided by 2"
+error_msg = "Usage: <number> divided by <number>"
+
+[[commands]]
+name = "if"
+module = "core"
+pattern = "if <condition...>"
+role = "block_start"
+handler = "core::if_start"
+description = "Start a conditional block. End with 'end'. Use 'otherwise' for else branch."
+usage = "if <condition>\n    ...\notherwise\n    ...\nend"
+example = "if x is greater than 5\n    print \"big\"\notherwise\n    print \"small\"\nend"
+error_msg = "Usage: if <condition> ... otherwise ... end"
+
+[[commands]]
+name = "otherwise"
+module = "core"
+pattern = "otherwise"
+role = "otherwise"
+handler = "core::otherwise"
+description = "Else branch for an if statement."
+usage = "otherwise"
+example = "if x is greater than 5\n    print \"big\"\notherwise\n    print \"small\"\nend"
+error_msg = "Usage: otherwise (inside an if block)"
+
+[[commands]]
+name = "end"
+module = "core"
+pattern = "end"
+role = "block_end"
+handler = "core::end"
+description = "End a block (if, repeat, teach)."
+usage = "end"
+example = "if x > 5\n    print \"big\"\nend"
+error_msg = "Usage: end (to close a block)"
+
+[[commands]]
+name = "repeat_times"
+module = "core"
+pattern = "repeat <n> times"
+role = "block_start"
+handler = "core::repeat_times_start"
+description = "Repeat a block a fixed number of times."
+usage = "repeat <n> times\n    ...\nend"
+example = "repeat 3 times\n    print \"hello\"\nend"
+error_msg = "Usage: repeat <number> times ... end"
+
+[[commands]]
+name = "repeat_while"
+module = "core"
+pattern = "repeat while <condition...>"
+role = "block_start"
+handler = "core::repeat_while_start"
+description = "Repeat a block while a condition is true."
+usage = "repeat while <condition>\n    ...\nend"
+example = "repeat while x is less than 10\n    set x to x plus 1\nend"
+error_msg = "Usage: repeat while <condition> ... end"
+
+[[commands]]
+name = "repeat_for_each"
+module = "core"
+pattern = "repeat for each <item> in <list>"
+role = "block_start"
+handler = "core::repeat_for_each_start"
+description = "Repeat a block for each item in a list."
+usage = "repeat for each <item> in <list>\n    ...\nend"
+example = "repeat for each name in names\n    print name\nend"
+error_msg = "Usage: repeat for each <name> in <list> ... end"
+
+[[commands]]
+name = "stop"
+module = "core"
+pattern = "stop"
+handler = "core::stop"
+description = "Leave the current loop immediately."
+usage = "stop"
+example = "repeat 10 times\n    if x is equal to 5\n        stop\n    end\nend"
+error_msg = "Usage: stop (inside a repeat block)"
+
+[[commands]]
+name = "wait"
+module = "core"
+pattern = "wait <n> seconds"
+handler = "core::wait"
+description = "Pause execution for n seconds."
+usage = "wait <n> seconds"
+example = "wait 2 seconds"
+error_msg = "Usage: wait <number> seconds"
+
+[[commands]]
+name = "teach"
+module = "core"
+pattern = 'teach "<pattern>" [:]'
+role = "block_start"
+handler = "core::teach_start"
+description = "Define a new custom command. End with 'end'. Use <angle brackets> for placeholders."
+usage = "teach \"<pattern>\" [:]\n    ...\nend"
+example = "teach \"greet <name>\"\n    print \"Hello, <name>\"\nend"
+error_msg = "Usage: teach \"<pattern>\" ... end"
+
+[[commands]]
+name = "use"
+module = "core"
+pattern = "use <module>"
+handler = "core::use_module"
+description = "Load a module. The module's commands become available after this line."
+usage = "use <module>"
+example = "use math\nuse mytools"
+error_msg = "Usage: use <module>"
+
+[[commands]]
+name = "execute reverse"
+module = "core"
+pattern = "execute reverse"
+handler = "core::execute_reverse"
+description = "Run the program from bottom to top. Only works in script files."
+usage = "execute reverse"
+example = "print \"first\"\nprint \"second\"\nexecute reverse"
+error_msg = "Usage: execute reverse (script files only)"
+
+[[commands]]
+name = "is greater than"
+module = "core"
+pattern = "<a> is greater than <b>"
+handler = "core::cmp_greater"
+description = "Compare if a is greater than b."
+usage = "<a> is greater than <b>"
+example = "if x is greater than 5"
+error_msg = "Usage: <value> is greater than <value>"
+
+[[commands]]
+name = "is less than"
+module = "core"
+pattern = "<a> is less than <b>"
+handler = "core::cmp_less"
+description = "Compare if a is less than b."
+usage = "<a> is less than <b>"
+example = "if x is less than 10"
+error_msg = "Usage: <value> is less than <value>"
+
+[[commands]]
+name = "is equal to"
+module = "core"
+pattern = "<a> is equal to <b>"
+handler = "core::cmp_equal"
+description = "Compare if a equals b."
+usage = "<a> is equal to <b>"
+example = "if name is equal to \"Alice\""
+error_msg = "Usage: <value> is equal to <value>"
+
+[[commands]]
+name = "is not equal to"
+module = "core"
+pattern = "<a> is not equal to <b>"
+handler = "core::cmp_not_equal"
+description = "Compare if a does not equal b."
+usage = "<a> is not equal to <b>"
+example = "if x is not equal to 0"
+error_msg = "Usage: <value> is not equal to <value>"
+
+[[commands]]
+name = "is at least"
+module = "core"
+pattern = "<a> is at least <b>"
+handler = "core::cmp_at_least"
+description = "Compare if a is greater than or equal to b."
+usage = "<a> is at least <b>"
+example = "if x is at least 5"
+error_msg = "Usage: <value> is at least <value>"
+
+[[commands]]
+name = "is at most"
+module = "core"
+pattern = "<a> is at most <b>"
+handler = "core::cmp_at_most"
+description = "Compare if a is less than or equal to b."
+usage = "<a> is at most <b>"
+example = "if x is at most 10"
+error_msg = "Usage: <value> is at most <value>"
+
+[[commands]]
+name = "and"
+module = "core"
+pattern = "<a> and <b>"
+handler = "core::logic_and"
+description = "Logical AND of two conditions."
+usage = "<condition> and <condition>"
+example = "if x > 5 and x < 10"
+error_msg = "Usage: <condition> and <condition>"
+
+[[commands]]
+name = "or"
+module = "core"
+pattern = "<a> or <b>"
+handler = "core::logic_or"
+description = "Logical OR of two conditions."
+usage = "<condition> or <condition>"
+example = "if x < 0 or x > 100"
+error_msg = "Usage: <condition> or <condition>"
+
+[[commands]]
+name = "not"
+module = "core"
+pattern = "not <condition>"
+handler = "core::logic_not"
+description = "Logical NOT of a condition."
+usage = "not <condition>"
+example = "if not done"
+error_msg = "Usage: not <condition>"
+
+# Math module commands
+[[commands]]
+name = "to the power of"
+module = "math"
+pattern = "<a> to the power of <b>"
+handler = "math::power"
+description = "Raise a to the power of b."
+usage = "<a> to the power of <b>"
+example = "set result to 2 to the power of 10"
+error_msg = "Usage: <number> to the power of <number>"
+
+[[commands]]
+name = "factorial of"
+module = "math"
+pattern = "factorial of <n>"
+handler = "math::factorial"
+description = "Compute the factorial of n."
+usage = "factorial of <n>"
+example = "set result to factorial of 5"
+error_msg = "Usage: factorial of <number>"
+
+[[commands]]
+name = "square root of"
+module = "math"
+pattern = "square root of <n>"
+handler = "math::sqrt"
+description = "Compute the square root of n. Perfect squares are exact; others are approximate."
+usage = "square root of <n>"
+example = "set result to square root of 16\nset approx to square root of 2"
+error_msg = "Usage: square root of <number>"
+
+[[commands]]
+name = "factors of"
+module = "math"
+pattern = "factors of <n>"
+handler = "math::factors"
+description = "Find all factors of n."
+usage = "factors of <n>"
+example = "set result to factors of 12"
+error_msg = "Usage: factors of <number>"
+
+[[commands]]
+name = "percent of"
+module = "math"
+pattern = "<p> percent of <n>"
+handler = "math::percent"
+description = "Compute p percent of n."
+usage = "<p> percent of <n>"
+example = "set result to 20 percent of 150"
+error_msg = "Usage: <number> percent of <number>"
+
+[[commands]]
+name = "log of"
+module = "math"
+pattern = "log of <n>"
+handler = "math::log"
+description = "Natural logarithm of n. Base e."
+usage = "log of <n>"
+example = "set result to log of 10"
+error_msg = "Usage: log of <number>"
+
+[[commands]]
+name = "log base"
+module = "math"
+pattern = "log base <b> of <n>"
+handler = "math::log_base"
+description = "Logarithm of n with base b."
+usage = "log base <b> of <n>"
+example = "set result to log base 2 of 8"
+error_msg = "Usage: log base <number> of <number>"
+
+[[commands]]
+name = "absolute value of"
+module = "math"
+pattern = "absolute value of <n>"
+handler = "math::abs"
+description = "Absolute value of n."
+usage = "absolute value of <n>"
+example = "set result to absolute value of -5"
+error_msg = "Usage: absolute value of <number>"
+
+[[commands]]
+name = "round"
+module = "math"
+pattern = "round <n>"
+handler = "math::round"
+description = "Round n to the nearest integer."
+usage = "round <n>"
+example = "set result to round 3.7"
+error_msg = "Usage: round <number>"
+
+[[commands]]
+name = "smallest of"
+module = "math"
+pattern = "smallest of <a> and <b>"
+handler = "math::min"
+description = "The smaller of two numbers."
+usage = "smallest of <a> and <b>"
+example = "set result to smallest of 3 and 7"
+error_msg = "Usage: smallest of <number> and <number>"
+
+[[commands]]
+name = "biggest of"
+module = "math"
+pattern = "biggest of <a> and <b>"
+handler = "math::max"
+description = "The larger of two numbers."
+usage = "biggest of <a> and <b>"
+example = "set result to biggest of 3 and 7"
+error_msg = "Usage: biggest of <number> and <number>"
+
+# Text module commands
+[[commands]]
+name = "join"
+module = "text"
+pattern = "join <a> and <b>"
+handler = "text::join"
+description = "Join two texts together."
+usage = "join <a> and <b>"
+example = 'set result to join "hello" and "world"'
+error_msg = "Usage: join <text> and <text>"
+
+[[commands]]
+name = "length of"
+module = "text"
+pattern = "length of <text>"
+handler = "text::length"
+description = "Get the length of a text."
+usage = "length of <text>"
+example = 'set n to length of "hello"'
+error_msg = "Usage: length of <text>"
+
+[[commands]]
+name = "uppercase"
+module = "text"
+pattern = "uppercase <text>"
+handler = "text::uppercase"
+description = "Convert text to uppercase."
+usage = "uppercase <text>"
+example = 'set result to uppercase "hello"'
+error_msg = "Usage: uppercase <text>"
+
+[[commands]]
+name = "lowercase"
+module = "text"
+pattern = "lowercase <text>"
+handler = "text::lowercase"
+description = "Convert text to lowercase."
+usage = "lowercase <text>"
+example = 'set result to lowercase "HELLO"'
+error_msg = "Usage: lowercase <text>"
+
+[[commands]]
+name = "replace"
+module = "text"
+pattern = "replace <x> with <y> in <text>"
+handler = "text::replace"
+description = "Replace all occurrences of x with y in text."
+usage = "replace <x> with <y> in <text>"
+example = 'set result to replace "world" with "Vynglish" in "hello world"'
+error_msg = "Usage: replace <text> with <text> in <text>"
+
+[[commands]]
+name = "split"
+module = "text"
+pattern = "split <text> by <x>"
+handler = "text::split"
+description = "Split text by delimiter x into a list."
+usage = "split <text> by <x>"
+example = 'set words to split "a,b,c" by ","'
+error_msg = "Usage: split <text> by <text>"
+
+[[commands]]
+name = "contains"
+module = "text"
+pattern = "<text> contains <x>"
+handler = "text::contains"
+description = "Check if text contains x."
+usage = "<text> contains <x>"
+example = 'if "hello world" contains "world"'
+error_msg = "Usage: <text> contains <text>"
+
+# List module commands
+[[commands]]
+name = "make a list called"
+module = "list"
+pattern = "make a list called <name>"
+handler = "list::make_empty"
+description = "Create an empty list."
+usage = "make a list called <name>"
+example = "make a list called items"
+error_msg = "Usage: make a list called <name>"
+
+[[commands]]
+name = "make a list called with"
+module = "list"
+pattern = "make a list called <name> with <items..>"
+handler = "list::make_with"
+description = "Create a list with initial items (comma-separated, use 'and' before last)."
+usage = "make a list called <name> with <items..>"
+example = "make a list called nums with 1, 2 and 3"
+error_msg = "Usage: make a list called <name> with <items..>"
+
+[[commands]]
+name = "add"
+module = "list"
+pattern = "add <item> to <list>"
+handler = "list::add"
+description = "Add an item to the end of a list."
+usage = "add <item> to <list>"
+example = "add 4 to nums"
+error_msg = "Usage: add <item> to <list>"
+
+[[commands]]
+name = "remove"
+module = "list"
+pattern = "remove <item> from <list>"
+handler = "list::remove"
+description = "Remove the first occurrence of an item from a list."
+usage = "remove <item> from <list>"
+example = "remove 2 from nums"
+error_msg = "Usage: remove <item> from <list>"
+
+[[commands]]
+name = "length of list"
+module = "list"
+pattern = "length of <list>"
+handler = "list::length"
+description = "Get the number of items in a list."
+usage = "length of <list>"
+example = "set n to length of nums"
+error_msg = "Usage: length of <list>"
+
+[[commands]]
+name = "sort"
+module = "list"
+pattern = "sort <list>"
+handler = "list::sort"
+description = "Sort a list in place."
+usage = "sort <list>"
+example = "sort nums"
+error_msg = "Usage: sort <list>"
+
+[[commands]]
+name = "reverse"
+module = "list"
+pattern = "reverse <list>"
+handler = "list::reverse"
+description = "Reverse a list in place."
+usage = "reverse <list>"
+example = "reverse nums"
+error_msg = "Usage: reverse <list>"
+
+[[commands]]
+name = "first of"
+module = "list"
+pattern = "first of <list>"
+handler = "list::first"
+description = "Get the first item of a list (1-indexed)."
+usage = "first of <list>"
+example = "set x to first of nums"
+error_msg = "Usage: first of <list>"
+
+[[commands]]
+name = "last of"
+module = "list"
+pattern = "last of <list>"
+handler = "list::last"
+description = "Get the last item of a list."
+usage = "last of <list>"
+example = "set x to last of nums"
+error_msg = "Usage: last of <list>"
+
+[[commands]]
+name = "item of"
+module = "list"
+pattern = "item <index> of <list>"
+handler = "list::item_at"
+description = "Get the item at the given 1-based index."
+usage = "item <index> of <list>"
+example = "set x to item 2 of nums"
+error_msg = "Usage: item <number> of <list>"
+
+# Random module commands
+[[commands]]
+name = "random number between"
+module = "random"
+pattern = "random number between <a> and <b>"
+handler = "random::random_between"
+description = "Generate a random integer between a and b (inclusive)."
+usage = "random number between <a> and <b>"
+example = "set x to random number between 1 and 10"
+error_msg = "Usage: random number between <number> and <number>"
+
+[[commands]]
+name = "pick random from"
+module = "random"
+pattern = "pick random from <list>"
+handler = "random::pick_random"
+description = "Pick a random element from a list."
+usage = "pick random from <list>"
+example = "set x to pick random from items"
+error_msg = "Usage: pick random from <list>"
+
+# Time module commands
+[[commands]]
+name = "current time"
+module = "time"
+pattern = "current time"
+handler = "time::current_time"
+description = "Get the current time as a string (HH:MM:SS)."
+usage = "current time"
+example = "print current time"
+error_msg = "Usage: current time"
+
+[[commands]]
+name = "current date"
+module = "time"
+pattern = "current date"
+handler = "time::current_date"
+description = "Get the current date as a string (YYYY-MM-DD)."
+usage = "current date"
+example = "print current date"
+error_msg = "Usage: current date"
+
+[[commands]]
+name = "time since"
+module = "time"
+pattern = "time since <start>"
+handler = "time::time_since"
+description = "Get seconds elapsed since a start time (from clock ticks)."
+usage = "time since <start>"
+example = "set start to current time\nwait 2 seconds\nprint time since start"
+error_msg = "Usage: time since <number>"
+# ---------- words the REPL answers itself ----------
+#
+# These are marked `repl_only` so a script cannot use them: they are about the
+# conversation, not about the program. The REPL still handles them before the
+# table is consulted, so they work even with no commands loaded.
+
+[[commands]]
+name = "help"
+module = "repl"
+pattern = "help"
+role = "command"
+repl_only = true
+handler = "repl::help"
+description = "Open help. Type the name of a command to read about it. Leave with q, quit or exit."
+usage = "help\nhelp <name>"
+example = "help\nhelp print"
+error_msg = "Usage: help [name]"
+
+[[commands]]
+name = "copyright"
+module = "repl"
+pattern = "copyright"
+role = "command"
+repl_only = true
+handler = "repl::copyright"
+description = "Show who owns Vynglish and under what licence."
+usage = "copyright"
+example = "copyright"
+error_msg = "Usage: copyright"
+
+[[commands]]
+name = "credits"
+module = "repl"
+pattern = "credits"
+role = "command"
+repl_only = true
+handler = "repl::credits"
+description = "Show who made Vynglish and what it is built from."
+usage = "credits"
+example = "credits"
+error_msg = "Usage: credits"
+
+[[commands]]
+name = "license"
+module = "repl"
+pattern = "license"
+role = "command"
+repl_only = true
+handler = "repl::license"
+description = "Show the MIT licence Vynglish is released under."
+usage = "license"
+example = "license"
+error_msg = "Usage: license"
+
+[[commands]]
+name = "exit"
+module = "repl"
+pattern = "exit"
+role = "command"
+repl_only = true
+handler = "repl::exit"
+description = "Leave Vynglish. Ctrl-D does the same, and so does Ctrl-Z then Enter on Windows."
+usage = "exit"
+example = "exit"
+error_msg = "Usage: exit"
+
+[[commands]]
+name = "quit"
+module = "repl"
+pattern = "quit"
+role = "command"
+repl_only = true
+handler = "repl::quit"
+description = "Leave Vynglish. The same as exit."
+usage = "quit"
+example = "quit"
+error_msg = "Usage: quit"
+
+# ---------- asking the system for something ----------
+#
+# Every ability a program can reach is named here, so the boundary between the
+# language and the machine is written down in one place.
+
+[[commands]]
+name = "ask the system for"
+module = "core"
+pattern = 'ask the system for "<ability>"'
+role = "command"
+handler = "core::ask_system"
+description = "Ask the machine to do something, such as reading the clock."
+usage = 'ask the system for "<ability>"'
+example = 'ask the system for "current time"'
+error_msg = "Usage: ask the system for \"<ability>\""
+
+[[commands]]
+name = "ask the system for with"
+module = "core"
+pattern = 'ask the system for "<ability>" with <args...>'
+role = "command"
+handler = "core::ask_system"
+description = "Ask the machine to do something and give it the arguments it needs."
+usage = 'ask the system for "<ability>" with <args...>'
+example = 'ask the system for "text length" with "hello"'
+error_msg = "Usage: ask the system for \"<ability>\" with <args...>"
+
+[[commands]]
+name = "ask the system for with remember"
+module = "core"
+pattern = 'ask the system for "<ability>" with <arg> and remember it as <name>'
+role = "command"
+handler = "core::ask_system_remember"
+description = "Ask the machine to do something and keep the answer under a name."
+usage = 'ask the system for "<ability>" with <arg> and remember it as <name>'
+example = 'ask the system for "text length" with "hello" and remember it as n'
+error_msg = "Usage: ask the system for \"<ability>\" with <arg> and remember it as <name>"
+
+[[commands]]
+name = "ask the system for remember"
+module = "core"
+pattern = 'ask the system for "<ability>" and remember it as <name>'
+role = "command"
+handler = "core::ask_system_remember"
+description = "Ask the machine to do something and keep the answer under a name."
+usage = 'ask the system for "<ability>" and remember it as <name>'
+example = 'ask the system for "current date" and remember it as today'
+error_msg = "Usage: ask the system for \"<ability>\" and remember it as <name>"

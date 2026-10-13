@@ -1,0 +1,14 @@
+# Time module
+
+teach "current time":
+    ask the system for "current time"
+end
+
+teach "current date":
+    ask the system for "current date"
+end
+
+teach "time since <start>":
+    ask the system for "clock ticks"
+    # Would need subtraction - handled by Rust
+end

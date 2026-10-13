@@ -1,0 +1,45 @@
+# List module
+
+teach "make a list called <name>":
+    ask the system for "list length" with ""  # placeholder to create empty list
+    # Actually handled by Rust
+end
+
+teach "make a list called <name> with <items>":
+    # Items are comma-separated with 'and' before last
+    # This is handled by the parser
+end
+
+teach "add <item> to <list>":
+    ask the system for "list add" with <list> and <item>
+end
+
+teach "remove <item> from <list>":
+    ask the system for "list remove" with <list> and <item>
+end
+
+teach "length of <list>":
+    ask the system for "list length" with <list>
+end
+
+teach "sort <list>":
+    ask the system for "list sort" with <list>
+end
+
+teach "reverse <list>":
+    # No primitive for reverse yet
+    ask the system for "list length" with <list>
+end
+
+teach "first of <list>":
+    ask the system for "list item at" with <list> and 1
+end
+
+teach "last of <list>":
+    ask the system for "list length" with <list>
+    ask the system for "list item at" with <list> and _
+end
+
+teach "item <index> of <list>":
+    ask the system for "list item at" with <list> and <index>
+end

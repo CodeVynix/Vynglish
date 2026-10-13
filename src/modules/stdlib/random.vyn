@@ -1,0 +1,12 @@
+# Random module
+
+teach "random number between <a> and <b>":
+    ask the system for "random integer"
+    # Would need modulo operation - handled by Rust
+end
+
+teach "pick random from <list>":
+    ask the system for "random integer"
+    ask the system for "list length" with <list>
+    # Would need modulo and item at - handled by Rust
+end

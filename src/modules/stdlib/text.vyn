@@ -1,0 +1,38 @@
+# Text module
+
+teach "join <a> and <b>":
+    ask the system for "text join" with <a> and <b>
+end
+
+teach "length of <text>":
+    ask the system for "text length" with <text>
+end
+
+teach "uppercase <text>":
+    ask the system for "text uppercase" with <text>
+end
+
+teach "lowercase <text>":
+    ask the system for "text lowercase" with <text>
+end
+
+teach "replace <x> with <y> in <text>":
+    # This would need a replace primitive - simplified for now
+    ask the system for "text join" with "replace " and <x>
+    ask the system for "text join" with _ and " with "
+    ask the system for "text join" with _ and <y>
+    ask the system for "text join" with _ and " in "
+    ask the system for "text join" with _ and <text>
+end
+
+teach "split <text> by <x>":
+    ask the system for "text join" with "split " and <text>
+    ask the system for "text join" with _ and " by "
+    ask the system for "text join" with _ and <x>
+end
+
+teach "<text> contains <x>":
+    ask the system for "text join" with <text>
+    ask the system for "text join" with _ and " contains "
+    ask the system for "text join" with _ and <x>
+end
