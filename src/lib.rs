@@ -5,6 +5,7 @@
 //! `help` and the documentation say about it. Nothing here repeats a command
 //! list, so adding a command is one row in the table plus one handler.
 
+pub mod compiler;
 pub mod interpreter;
 pub mod modules;
 pub mod pattern_table;
@@ -19,6 +20,10 @@ use crate::validator::Mode;
 
 /// Read a file or start the REPL, depending on what was typed.
 pub fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+    if args.get(1).map(String::as_str) == Some("compile") {
+        compile_cli(&args[2..]);
+        return Ok(());
+    }
     if args.len() > 1 {
         let path = &args[1];
         let content = std::fs::read_to_string(path)?;
@@ -26,6 +31,42 @@ pub fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     crate::repl::Repl::new()?.run()
+}
+
+/// `vyn compile <script.vyn> [out.exe]`: turn a script into a native Windows
+/// executable that needs no interpreter.
+pub fn compile_cli(args: &[String]) {
+    let Some(source) = args.first() else {
+        eprintln!("Usage: vyn compile <script.vyn> [out.exe]");
+        std::process::exit(1);
+    };
+    let content = match std::fs::read_to_string(source) {
+        Ok(content) => content,
+        Err(problem) => {
+            eprintln!("Error: {problem}");
+            std::process::exit(1);
+        }
+    };
+    match compiler::compile(&content) {
+        Ok(bytes) => {
+            let out = args.get(1).cloned().unwrap_or_else(|| {
+                std::path::Path::new(source)
+                    .with_extension("exe")
+                    .to_string_lossy()
+                    .into_owned()
+            });
+            if let Err(problem) = std::fs::write(&out, bytes) {
+                eprintln!("Error: {problem}");
+                std::process::exit(1);
+            }
+        }
+        Err(errors) => {
+            for error in errors {
+                eprintln!("{source}:{}: {}", error.line, error.message);
+            }
+            std::process::exit(1);
+        }
+    }
 }
 
 /// Run a whole program. Errors are shown without a stack of frames, and a
