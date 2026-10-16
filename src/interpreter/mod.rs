@@ -749,3 +749,51 @@ fn taught_name(pattern: &str) -> Option<String> {
         name
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::Duration;
+
+    /// Run `source` on its own thread while another thread presses Ctrl-C a
+    /// tenth of a second in. Panics if the program has not stopped within two
+    /// seconds. Returns whether the session reports having been interrupted.
+    fn stopped_after_ctrl_c(source: &str) -> bool {
+        let mut session = Session::with_io(Io::capturing());
+        let flag = Arc::clone(&session.ctrl_c);
+        let (done, finished) = mpsc::channel();
+        let program = source.to_string();
+        let runner = thread::spawn(move || {
+            let outcome = session.run_source(&program, Mode::Script);
+            let _ = done.send((outcome.is_ok(), session.was_interrupted()));
+        });
+
+        thread::sleep(Duration::from_millis(100));
+        flag.store(true, Ordering::Relaxed);
+
+        let (ok, interrupted) = finished
+            .recv_timeout(Duration::from_secs(2))
+            .expect("the program should stop within two seconds of Ctrl-C");
+        runner.join().expect("the run thread should finish");
+        assert!(ok, "an interrupted program is not an error");
+        interrupted
+    }
+
+    #[test]
+    fn ctrl_c_stops_a_long_loop() {
+        assert!(
+            stopped_after_ctrl_c("repeat 1000000000 times\n    set x to 1\nend"),
+            "the loop should report that it was interrupted"
+        );
+    }
+
+    #[test]
+    fn ctrl_c_cuts_a_wait_short() {
+        assert!(
+            stopped_after_ctrl_c("wait 5 seconds"),
+            "a wait should report that it was interrupted"
+        );
+    }
+}

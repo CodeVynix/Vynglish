@@ -79,8 +79,13 @@ impl Repl {
         // A missing history file is normal on the first run.
         let _ = editor.load_history("history.txt");
 
+        // The session must watch the very flag the handler sets, or a Ctrl-C
+        // during a running command would never be seen by the interpreter.
+        let mut session = Session::new();
+        session.ctrl_c = Arc::clone(&ctrl_c);
+
         Ok(Self {
-            session: Session::new(),
+            session,
             editor,
             pager: Pager::new(),
             pending: Vec::new(),
@@ -494,6 +499,18 @@ mod tests {
         // This is the reported symptom: the prompt must fall back to `>>>`
         // rather than staying on `...`.
         assert_eq!(repl.prompt(false), PROMPT, "a fresh prompt should be shown");
+    }
+
+    #[test]
+    fn the_session_watches_the_flag_the_ctrl_c_handler_sets() {
+        // The handler writes to the REPL's flag; the interpreter reads the
+        // session's. If they are two different flags, a Ctrl-C during a running
+        // command is never seen — the bug this guards against.
+        let repl = repl();
+        assert!(
+            Arc::ptr_eq(&repl.ctrl_c, &repl.session.ctrl_c),
+            "the interpreter must read the flag the Ctrl-C handler writes"
+        );
     }
 
     #[test]
