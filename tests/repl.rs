@@ -39,12 +39,12 @@ fn typed(input: &str) -> String {
     text
 }
 
-/// The answers, with the two-line greeting and its trailing blank line taken
-/// off the top so a test only looks at what the commands produced.
+/// The answers, with the two-line greeting taken off the top so a test only
+/// looks at what the commands produced.
 fn answers(input: &str) -> Vec<String> {
     typed(input)
         .lines()
-        .skip(3)
+        .skip(2)
         .map(|line| line.to_string())
         .collect()
 }

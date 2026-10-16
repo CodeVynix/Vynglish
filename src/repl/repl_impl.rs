@@ -68,7 +68,13 @@ impl Repl {
         let ctrl_c = Arc::new(AtomicBool::new(false));
         let flag = Arc::clone(&ctrl_c);
         ctrlc::set_handler(move || flag.store(true, Ordering::Relaxed))?;
+        Self::with_editor(ctrl_c)
+    }
 
+    /// The rest of `new`, after the signal handler is in place. Split out so a
+    /// test can build a REPL without installing the handler a second time,
+    /// which the signal library refuses to do.
+    fn with_editor(ctrl_c: Arc<AtomicBool>) -> Result<Self, Box<dyn std::error::Error>> {
         let mut editor = Editor::<(), FileHistory>::new()?;
         // A missing history file is normal on the first run.
         let _ = editor.load_history("history.txt");
@@ -103,13 +109,7 @@ impl Repl {
                 continue;
             }
 
-            let prompt = if self.pending.is_empty() {
-                PROMPT
-            } else {
-                CONTINUED
-            };
-
-            let Some(line) = self.read_line(prompt) else {
+            let Some(line) = self.read_line(false) else {
                 break;
             };
             if !self.handle_line(&line) {
@@ -122,12 +122,17 @@ impl Repl {
     }
 
     /// Read one line. `None` means the user asked to leave.
-    fn read_line(&mut self, prompt: &str) -> Option<String> {
+    ///
+    /// `in_help` says which utility is asking, so the prompt is `help>` there.
+    /// The prompt is chosen inside the loop rather than passed in, because a
+    /// Ctrl-C here throws away a half typed block, and the prompt has to fall
+    /// back to the plain one when it does.
+    fn read_line(&mut self, in_help: bool) -> Option<String> {
         loop {
             // Each prompt starts with the flag clear, so an old Ctrl-C cannot
             // stop the next command.
             self.session.ctrl_c.store(false, Ordering::Relaxed);
-            match self.editor.readline(prompt) {
+            match self.editor.readline(self.prompt(in_help)) {
                 Ok(line) => {
                     if line.chars().all(|character| character == CTRL_Z) {
                         return None;
@@ -142,15 +147,40 @@ impl Repl {
                 Err(ReadlineError::Interrupted) => {
                     // Ctrl-C: no blank line, just a fresh prompt. Anything the
                     // user had half typed for a block is dropped.
-                    self.session.reset_ctrl_c();
-                    self.pending.clear();
-                    self.paste = PasteMode::Off;
+                    self.on_interrupt();
                     continue;
                 }
                 Err(ReadlineError::Eof) => return None,
                 Err(_) => return None,
             }
         }
+    }
+
+    /// The prompt to show right now: `help>` inside the help utility, the
+    /// continuation prompt while a block is open, otherwise the plain one.
+    ///
+    /// This is asked again before every line, so that when a Ctrl-C drops a
+    /// half open block the prompt is already back to `>>>`.
+    fn prompt(&self, in_help: bool) -> &'static str {
+        if in_help {
+            HELP_PROMPT
+        } else if self.pending.is_empty() {
+            PROMPT
+        } else {
+            CONTINUED
+        }
+    }
+
+    /// Deal with a Ctrl-C at a prompt, wherever it happened.
+    ///
+    /// Like Python at its `...` prompt, this throws away everything typed so
+    /// far, so a half open block does not run and the next line starts a fresh
+    /// program. The same happens inside paste mode and inside `help>`, because
+    /// each of those keeps its own sort of half finished input.
+    fn on_interrupt(&mut self) {
+        self.session.reset_ctrl_c();
+        self.pending.clear();
+        self.paste = PasteMode::Off;
     }
 
     /// Deal with one complete line of input. False means the REPL should end.
@@ -230,7 +260,7 @@ impl Repl {
         println!("Type q, quit or exit to go back to the prompt.\n");
 
         loop {
-            let Some(line) = self.read_line(HELP_PROMPT) else {
+            let Some(line) = self.read_line(true) else {
                 self.in_help = false;
                 return Ok(false);
             };
@@ -351,7 +381,9 @@ impl Repl {
     }
 
     fn print_banner(&mut self) {
-        let _ = writeln!(self.session.io.out, "{}", banner());
+        // `banner()` already ends with a newline, so no `writeln!` here: that
+        // would leave a blank line before the first prompt.
+        let _ = write!(self.session.io.out, "{}", banner());
         let _ = self.session.io.out.flush();
     }
 }
@@ -422,5 +454,66 @@ fn first_word(line: &Line) -> String {
     match line.tokens.first().map(|token| &token.token) {
         Some(Token::Word(word)) | Some(Token::StringLiteral(word)) => word.clone(),
         _ => String::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A REPL that shares the test process, so no signal handler is installed
+    /// and no terminal is needed.
+    fn repl() -> Repl {
+        Repl::with_editor(Arc::new(AtomicBool::new(false))).expect("a REPL for the test")
+    }
+
+    /// How many blocks the half typed lines have left open, worked out the same
+    /// way the prompt works it out.
+    fn depth(repl: &Repl) -> usize {
+        let source = repl.pending.join("\n");
+        let tokens = crate::tokenizer::Tokenizer::new(&source).tokenize();
+        let lines = crate::tokenizer::group_by_line(&tokens);
+        repl.open_blocks(&lines)
+    }
+
+    #[test]
+    fn ctrl_c_throws_away_a_half_open_block() {
+        let mut repl = repl();
+        repl.handle_line("repeat 5 times");
+        repl.handle_line("    print 1");
+
+        assert_eq!(repl.pending.len(), 2, "two lines should be waiting");
+        assert_eq!(depth(&repl), 1, "the block should still be open");
+        assert_eq!(repl.prompt(false), CONTINUED, "a block is being typed");
+
+        repl.on_interrupt();
+
+        assert!(repl.pending.is_empty(), "the block buffer should be empty");
+        assert_eq!(depth(&repl), 0, "the block depth should be zero");
+        assert_eq!(repl.paste, PasteMode::Off, "paste mode should be off");
+        // This is the reported symptom: the prompt must fall back to `>>>`
+        // rather than staying on `...`.
+        assert_eq!(repl.prompt(false), PROMPT, "a fresh prompt should be shown");
+    }
+
+    #[test]
+    fn ctrl_c_in_paste_mode_and_help_clears_the_half_typed_input() {
+        let mut repl = repl();
+
+        // Inside paste mode, with a line already gathered for the block.
+        repl.handle_line("teach \"greet\"");
+        repl.paste = PasteMode::Collecting;
+        repl.on_interrupt();
+        assert!(repl.pending.is_empty(), "paste mode should not keep lines");
+        assert_eq!(repl.paste, PasteMode::Off, "paste mode should be off");
+
+        // Inside `help>`, which stays open but keeps no half typed block.
+        repl.in_help = true;
+        repl.pending.push("print 1".to_string());
+        assert_eq!(repl.prompt(true), HELP_PROMPT, "help has its own prompt");
+        repl.on_interrupt();
+        assert!(repl.pending.is_empty(), "help should not keep lines");
+        assert!(repl.in_help, "help should stay open");
+        assert_eq!(repl.prompt(true), HELP_PROMPT, "help keeps its prompt");
     }
 }
