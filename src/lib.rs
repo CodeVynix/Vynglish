@@ -110,6 +110,14 @@ pub fn generate_docs() -> String {
         write_command_doc(&mut output, &command);
     }
 
+    // The words the prompt answers itself. They belong to the conversation, not
+    // to a program, which is why they live in their own module.
+    output.push_str("## Session Commands\n\n");
+    output.push_str("These words belong to the prompt, not to a program.\n\n");
+    for command in sorted_commands(&table, "repl") {
+        write_command_doc(&mut output, &command);
+    }
+
     for module in table.modules() {
         if module == "core" || module == "user" || module == "repl" {
             continue;

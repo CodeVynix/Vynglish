@@ -3,20 +3,23 @@
 //! Three things happen for every line:
 //!
 //! 1. A word the REPL owns (`help`, `copyright`, `credits`, `license`, `exit`,
-//!    `quit`) is answered here, before the pattern table is consulted, so these
-//!    words always work and never produce a `Line 1:1` error.
+//!    `quit`, `paste`, `history`) is answered here, before the pattern table is
+//!    consulted, so these words always work and never produce a `Line 1:1`
+//!    error.
 //! 2. Otherwise the line joins any unfinished block.
 //! 3. When the program is complete it is checked and run. Errors are shown
 //!    without a position, because a REPL line has no useful one, and the prompt
 //!    returns immediately with no blank line in between.
 //!
 //! Inside `help>` the words `q`, `quit` and `exit` come back to the prompt.
+//! Between `paste` and `end paste` every line is gathered and then run as one
+//! program, exactly as a script file would be.
 
 use crate::interpreter::Session;
 use crate::pattern_table::schema::Role;
 use crate::pattern_table::schema::{CommandPattern, PatternTable};
 use crate::repl::pager::Pager;
-use crate::repl::shortcuts::PasteMode;
+use crate::repl::shortcuts::{self, KeyAction, KeySlot, PasteMode};
 use crate::tokenizer::tokens::{Line, Token};
 use crate::validator::{Mode, match_line};
 use rustyline::Editor;
@@ -38,13 +41,25 @@ pub const HELP_PROMPT: &str = "help> ";
 pub const README_URL: &str = "https://github.com/CodeVynix/vynglish";
 
 /// The words the REPL answers itself, before anything is validated.
-const REPL_WORDS: [&str; 6] = ["help", "copyright", "credits", "license", "exit", "quit"];
+const REPL_WORDS: [&str; 8] = [
+    "help",
+    "copyright",
+    "credits",
+    "license",
+    "exit",
+    "quit",
+    "paste",
+    "history",
+];
 
 /// The words that leave the help utility.
 const HELP_QUIT_WORDS: [&str; 3] = ["q", "quit", "exit"];
 
 /// The subjects the help utility lists for `topics`.
 const HELP_TOPICS: [&str; 1] = ["syntax"];
+
+/// The line that ends a pasted block.
+const END_PASTE: &str = "end paste";
 
 /// The character some Windows terminals send for Ctrl-Z, which means "end of
 /// input".
@@ -57,10 +72,23 @@ pub struct Repl {
     /// Lines of a block that is not finished yet.
     pending: Vec<String>,
     paste: PasteMode,
+    /// The lines gathered between `paste` and `end paste`.
+    pasted: Vec<String>,
+    /// The lines typed at the prompt in this session, for `history`.
+    typed: Vec<String>,
+    /// Where a function-key binding leaves the action it means.
+    keys: KeySlot,
     /// True while the help utility is showing.
     in_help: bool,
     /// The flag a long loop watches, set when the user presses Ctrl-C.
     ctrl_c: Arc<AtomicBool>,
+}
+
+/// What reading a line gave back: a typed line, or a function key the REPL
+/// should act on without treating as a line.
+enum Input {
+    Line(String),
+    Action(KeyAction),
 }
 
 impl Repl {
@@ -79,6 +107,10 @@ impl Repl {
         // A missing history file is normal on the first run.
         let _ = editor.load_history("history.txt");
 
+        // F1, F2 and F3 mean help, history and paste. The editor leaves a note
+        // in the slot; the REPL reads it after every line.
+        let keys = shortcuts::bind_keys(&mut editor);
+
         // The session must watch the very flag the handler sets, or a Ctrl-C
         // during a running command would never be seen by the interpreter.
         let mut session = Session::new();
@@ -90,6 +122,9 @@ impl Repl {
             pager: Pager::new(),
             pending: Vec::new(),
             paste: PasteMode::Off,
+            pasted: Vec::new(),
+            typed: Vec::new(),
+            keys,
             in_help: false,
             ctrl_c,
         })
@@ -114,11 +149,16 @@ impl Repl {
                 continue;
             }
 
-            let Some(line) = self.read_line(false) else {
+            let Some(input) = self.read_line(false) else {
                 break;
             };
-            if !self.handle_line(&line) {
-                break;
+            match input {
+                Input::Action(action) => self.do_key_action(action),
+                Input::Line(line) => {
+                    if !self.handle_line(&line) {
+                        break;
+                    }
+                }
             }
         }
 
@@ -126,28 +166,30 @@ impl Repl {
         Ok(())
     }
 
-    /// Read one line. `None` means the user asked to leave.
+    /// Read one line, or the function key the user pressed instead.
     ///
-    /// `in_help` says which utility is asking, so the prompt is `help>` there.
-    /// The prompt is chosen inside the loop rather than passed in, because a
-    /// Ctrl-C here throws away a half typed block, and the prompt has to fall
-    /// back to the plain one when it does.
-    fn read_line(&mut self, in_help: bool) -> Option<String> {
+    /// `None` means the user asked to leave. `in_help` says which utility is
+    /// asking, so the prompt is `help>` there. The prompt is chosen inside the
+    /// loop rather than passed in, because a Ctrl-C here throws away a half
+    /// typed block, and the prompt has to fall back to the plain one when it
+    /// does.
+    fn read_line(&mut self, in_help: bool) -> Option<Input> {
         loop {
             // Each prompt starts with no Ctrl-C remembered, so one pressed
             // while the prompt waited cannot stop the next command.
             self.session.clear_interrupt();
             match self.editor.readline(self.prompt(in_help)) {
                 Ok(line) => {
-                    if line.chars().all(|character| character == CTRL_Z) {
+                    // A blank line is not Ctrl-Z: only a line made only of
+                    // Ctrl-Z characters means "end of input".
+                    if !line.is_empty() && line.chars().all(|character| character == CTRL_Z) {
                         return None;
                     }
-                    if crate::repl::shortcuts::handle_f1(&line) {
-                        self.in_help = true;
-                        continue;
+                    if let Some(action) = self.take_key_action() {
+                        return Some(Input::Action(action));
                     }
                     let _ = self.editor.add_history_entry(line.as_str());
-                    return Some(line);
+                    return Some(Input::Line(line));
                 }
                 Err(ReadlineError::Interrupted) => {
                     // Ctrl-C: no blank line, just a fresh prompt. Anything the
@@ -161,18 +203,43 @@ impl Repl {
         }
     }
 
+    /// The note a function-key binding left, if any.
+    fn take_key_action(&self) -> Option<KeyAction> {
+        self.keys.lock().expect("the key slot").take()
+    }
+
+    /// Do what a function key asked for.
+    fn do_key_action(&mut self, action: KeyAction) {
+        match action {
+            KeyAction::Help => self.in_help = true,
+            KeyAction::History => self.print_history(None),
+            KeyAction::Paste => {
+                // Paste belongs to the prompt, not to the help utility.
+                if self.in_help {
+                    return;
+                }
+                if self.paste.collecting() {
+                    self.finish_paste();
+                } else {
+                    self.start_paste();
+                }
+            }
+        }
+    }
+
     /// The prompt to show right now: `help>` inside the help utility, the
-    /// continuation prompt while a block is open, otherwise the plain one.
+    /// continuation prompt while a block or a pasted block is open, otherwise
+    /// the plain one.
     ///
     /// This is asked again before every line, so that when a Ctrl-C drops a
     /// half open block the prompt is already back to `>>>`.
     fn prompt(&self, in_help: bool) -> &'static str {
         if in_help {
             HELP_PROMPT
-        } else if self.pending.is_empty() {
-            PROMPT
-        } else {
+        } else if self.paste.collecting() || !self.pending.is_empty() {
             CONTINUED
+        } else {
+            PROMPT
         }
     }
 
@@ -180,16 +247,22 @@ impl Repl {
     ///
     /// Like Python at its `...` prompt, this throws away everything typed so
     /// far, so a half open block does not run and the next line starts a fresh
-    /// program. The same happens inside paste mode and inside `help>`, because
-    /// each of those keeps its own sort of half finished input.
+    /// program. A pasted block in progress is discarded whole. The same happens
+    /// inside `help>`, which keeps its own sort of half finished input.
     fn on_interrupt(&mut self) {
         self.session.clear_interrupt();
         self.pending.clear();
+        self.pasted.clear();
         self.paste = PasteMode::Off;
     }
 
     /// Deal with one complete line of input. False means the REPL should end.
     fn handle_line(&mut self, line: &str) -> bool {
+        // A pasted block gathers every line, blank ones included, until its end.
+        if self.paste.collecting() {
+            return self.collect_paste(line);
+        }
+
         let trimmed = line.trim();
         if trimmed.is_empty() && self.pending.is_empty() {
             return true;
@@ -203,12 +276,13 @@ impl Repl {
                 .unwrap_or("")
                 .to_lowercase();
             if REPL_WORDS.contains(&first.as_str()) {
+                self.remember(line);
                 return self.repl_word(&first, trimmed);
             }
         }
 
+        self.remember(line);
         self.pending.push(line.to_string());
-        self.paste.collect(line);
 
         let joined = self.pending.join("\n");
         if self.block_is_open(&joined) {
@@ -219,8 +293,51 @@ impl Repl {
         true
     }
 
-    /// Answer `help`, `copyright`, `credits`, `license`, `exit` or `quit`.
-    /// False means `exit` or `quit` was typed and the prompt should close.
+    /// Keep a line for `history`. Blank lines are not remembered.
+    fn remember(&mut self, line: &str) {
+        if !line.trim().is_empty() {
+            self.typed.push(line.to_string());
+        }
+    }
+
+    /// Gather one line of a pasted block, or run the block at its end.
+    fn collect_paste(&mut self, line: &str) -> bool {
+        if line.trim() == END_PASTE {
+            self.finish_paste();
+            return true;
+        }
+        self.pasted.push(line.to_string());
+        true
+    }
+
+    /// Begin gathering a pasted block.
+    fn start_paste(&mut self) {
+        self.pending.clear();
+        self.pasted.clear();
+        self.paste = PasteMode::Collecting;
+    }
+
+    /// Run the gathered block as a script, then stop gathering. Errors name the
+    /// line within the pasted text, as a script file would.
+    fn finish_paste(&mut self) {
+        self.paste = PasteMode::Off;
+        let text = std::mem::take(&mut self.pasted).join("\n");
+        self.run_text(&text, Mode::Script, true);
+    }
+
+    /// Show the lines typed at the prompt this session, numbered from 1.
+    /// `last` limits it to the most recent that many.
+    fn print_history(&self, last: Option<usize>) {
+        let total = self.typed.len();
+        let start = last.map_or(0, |count| total.saturating_sub(count));
+        for (index, line) in self.typed.iter().enumerate().skip(start) {
+            println!("{:>4}  {line}", index + 1);
+        }
+    }
+
+    /// Answer `help`, `copyright`, `credits`, `license`, `paste`, `history`,
+    /// `exit` or `quit`. False means `exit` or `quit` was typed and the prompt
+    /// should close.
     fn repl_word(&mut self, word: &str, whole: &str) -> bool {
         // `exit` and `quit` leave. Nothing to do but stop the loop.
         if word == "exit" || word == "quit" {
@@ -241,6 +358,14 @@ impl Repl {
                     }
                 }
             }
+            "paste" => self.start_paste(),
+            "history" => match whole.split_whitespace().nth(1) {
+                None => self.print_history(None),
+                Some(count) => match count.parse::<usize>() {
+                    Ok(n) => self.print_history(Some(n)),
+                    Err(_) => println!("Usage: history [count]"),
+                },
+            },
             "copyright" => self.paged(&format!("{}\n", copyright())),
             "credits" => self.paged(&format!("{}\n", credits())),
             "license" => self.paged(&format!("{}\n", license())),
@@ -255,8 +380,8 @@ impl Repl {
         println!("Welcome to Vynglish's help utility!");
         println!();
         println!("Press F1 at any prompt to open this help.");
-        println!("Press F2, or the up and down arrows, to recall a line you typed before.");
-        println!("Press F3 to paste a block of lines that runs as one piece.");
+        println!("Press F2, or type history, to list the lines you have typed.");
+        println!("Press F3, or type paste, to gather a block of lines; finish with end paste.");
         println!("Type the name of a command, module or topic to read about it.");
         println!(
             "Type `commands`, `modules` or `topics` to list them; `modules <word>` finds a module."
@@ -265,9 +390,16 @@ impl Repl {
         println!("Type q, quit or exit to go back to the prompt.\n");
 
         loop {
-            let Some(line) = self.read_line(true) else {
+            let Some(input) = self.read_line(true) else {
                 self.in_help = false;
                 return Ok(false);
+            };
+            let line = match input {
+                Input::Action(action) => {
+                    self.do_key_action(action);
+                    continue;
+                }
+                Input::Line(line) => line,
             };
             let wanted = line.trim();
             if HELP_QUIT_WORDS.contains(&wanted) {
@@ -334,22 +466,32 @@ impl Repl {
 
     /// Run a whole program and show what went wrong, if anything.
     fn run_program(&mut self, source: &str) {
+        self.run_text(source, Mode::Repl, false);
+    }
+
+    /// Run text and show what went wrong. `show_line` adds the line number the
+    /// error was found on, which a pasted block wants because it is read like a
+    /// script file; a single REPL line has no useful position, so it does not.
+    fn run_text(&mut self, source: &str, mode: Mode, show_line: bool) {
         for warning in std::mem::take(&mut self.session.warnings) {
             println!("{warning}");
         }
 
-        match self.session.run_source(source, Mode::Repl) {
-            Ok(()) => {
-                for warning in std::mem::take(&mut self.session.warnings) {
-                    println!("{warning}");
-                }
-            }
+        match self.session.run_source(source, mode) {
+            Ok(()) => {}
             Err(errors) => {
                 for error in errors {
-                    // The REPL never shows a position or "Nothing was run.".
-                    println!("{}", error.message());
+                    if show_line {
+                        println!("{error}");
+                    } else {
+                        println!("{}", error.message());
+                    }
                 }
             }
+        }
+
+        for warning in std::mem::take(&mut self.session.warnings) {
+            println!("{warning}");
         }
 
         if self.session.was_interrupted() {
@@ -414,7 +556,7 @@ fn role_of_line(table: &PatternTable, session: &Session, line: &Line) -> Option<
 pub fn banner() -> String {
     format!(
         "Vynglish {} (main, {}) [{}] on {}\n\
-         Type \"help\", \"copyright\", \"credits\" or \"license\" for more information.\n",
+         Type \"help\", \"history\" or \"paste\", or press F1, F2 or F3. \"copyright\", \"credits\" or \"license\" for more.\n",
         env!("CARGO_PKG_VERSION"),
         env!("VYNGLISH_BUILD_TIME"),
         env!("VYNGLISH_RUSTC"),
@@ -517,12 +659,15 @@ mod tests {
     fn ctrl_c_in_paste_mode_and_help_clears_the_half_typed_input() {
         let mut repl = repl();
 
-        // Inside paste mode, with a line already gathered for the block.
+        // Inside paste mode, with lines already gathered for the block.
         repl.handle_line("teach \"greet\"");
         repl.paste = PasteMode::Collecting;
+        repl.pasted.push("    print 1".to_string());
         repl.on_interrupt();
         assert!(repl.pending.is_empty(), "paste mode should not keep lines");
+        assert!(repl.pasted.is_empty(), "a pasted block should be discarded");
         assert_eq!(repl.paste, PasteMode::Off, "paste mode should be off");
+        assert_eq!(repl.prompt(false), PROMPT, "a fresh prompt should be shown");
 
         // Inside `help>`, which stays open but keeps no half typed block.
         repl.in_help = true;
@@ -532,5 +677,85 @@ mod tests {
         assert!(repl.pending.is_empty(), "help should not keep lines");
         assert!(repl.in_help, "help should stay open");
         assert_eq!(repl.prompt(true), HELP_PROMPT, "help keeps its prompt");
+    }
+
+    #[test]
+    fn paste_gathers_every_line_blank_ones_included_and_runs_at_end_paste() {
+        let mut repl = repl();
+        repl.session.io = crate::interpreter::Io::capturing();
+
+        repl.handle_line("paste");
+        assert_eq!(repl.paste, PasteMode::Collecting, "paste should be on");
+        assert_eq!(repl.prompt(false), CONTINUED, "paste shows the ... prompt");
+
+        // A whole teach block, with a blank line in the middle, is gathered
+        // rather than run line by line.
+        for line in [
+            "teach \"greet <name>\"",
+            "",
+            "    print \"hello <name>\"",
+            "end",
+        ] {
+            repl.handle_line(line);
+        }
+        assert_eq!(repl.pasted.len(), 4, "every line should be gathered");
+
+        repl.handle_line("end paste");
+        assert_eq!(
+            repl.paste,
+            PasteMode::Off,
+            "end paste should stop gathering"
+        );
+        assert!(
+            repl.pasted.is_empty(),
+            "the gathered lines should be cleared"
+        );
+        assert_eq!(
+            repl.prompt(false),
+            PROMPT,
+            "the prompt should be plain again"
+        );
+
+        // The block really ran: the taught command is known afterwards.
+        repl.handle_line("greet \"Ada\"");
+        assert_eq!(repl.session.io.output().trim(), "hello Ada");
+    }
+
+    #[test]
+    fn history_remembers_the_lines_typed_this_session() {
+        let mut repl = repl();
+        repl.handle_line("print 1");
+        repl.handle_line("set x to 2");
+        repl.handle_line(""); // a blank line is not remembered
+
+        assert_eq!(
+            repl.typed,
+            vec!["print 1".to_string(), "set x to 2".to_string()],
+            "only the lines typed at the prompt are kept"
+        );
+    }
+
+    #[test]
+    fn a_function_key_is_read_once_from_the_slot() {
+        let repl = repl();
+        *repl.keys.lock().expect("the key slot") = Some(KeyAction::History);
+        assert_eq!(repl.take_key_action(), Some(KeyAction::History));
+        assert_eq!(repl.take_key_action(), None, "the note is taken only once");
+    }
+
+    #[test]
+    fn the_paste_key_starts_and_then_runs_the_block() {
+        let mut repl = repl();
+        repl.do_key_action(KeyAction::Paste);
+        assert!(repl.paste.collecting(), "the first press starts gathering");
+        repl.handle_line("print 1");
+
+        repl.do_key_action(KeyAction::Paste);
+        assert_eq!(
+            repl.paste,
+            PasteMode::Off,
+            "the second press runs and stops"
+        );
+        assert!(repl.pasted.is_empty());
     }
 }

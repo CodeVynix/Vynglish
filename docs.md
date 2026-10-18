@@ -447,6 +447,122 @@ wait 2 seconds
 
 **Error:** Usage: wait <number> seconds
 
+## Session Commands
+
+These words belong to the prompt, not to a program.
+
+### copyright
+
+Show who owns Vynglish and under what licence.
+
+**Usage:** `copyright`
+
+**Example:**
+```
+copyright
+```
+
+**Error:** Usage: copyright
+
+### credits
+
+Show who made Vynglish and what it is built from.
+
+**Usage:** `credits`
+
+**Example:**
+```
+credits
+```
+
+**Error:** Usage: credits
+
+### exit
+
+Leave Vynglish. Ctrl-D does the same, and so does Ctrl-Z then Enter on Windows.
+
+**Usage:** `exit`
+
+**Example:**
+```
+exit
+```
+
+**Error:** Usage: exit
+
+### help
+
+Open help. Type the name of a command to read about it. Leave with q, quit or exit.
+
+**Usage:** `help
+help <name>`
+
+**Example:**
+```
+help
+help print
+```
+
+**Error:** Usage: help [name]
+
+### history
+
+Show the lines you have typed this session, numbered. 'history <n>' shows the last n.
+
+**Usage:** `history
+history <n>`
+
+**Example:**
+```
+history
+history 5
+```
+
+**Error:** Usage: history [count]
+
+### license
+
+Show the MIT licence Vynglish is released under.
+
+**Usage:** `license`
+
+**Example:**
+```
+license
+```
+
+**Error:** Usage: license
+
+### paste
+
+Gather lines until 'end paste', then run them as one program, like a script file.
+
+**Usage:** `paste
+    ...
+end paste`
+
+**Example:**
+```
+paste
+print "hello"
+end paste
+```
+
+**Error:** Usage: paste ... end paste
+
+### quit
+
+Leave Vynglish. The same as exit.
+
+**Usage:** `quit`
+
+**Example:**
+```
+quit
+```
+
+**Error:** Usage: quit
+
 ## Module: math
 
 ### absolute value of

@@ -169,7 +169,7 @@ fn the_banner_is_two_lines_and_names_the_tools() {
     );
     assert_eq!(
         lines[1],
-        "Type \"help\", \"copyright\", \"credits\" or \"license\" for more information."
+        "Type \"help\", \"history\" or \"paste\", or press F1, F2 or F3. \"copyright\", \"credits\" or \"license\" for more."
     );
 }
 
@@ -236,5 +236,69 @@ fn a_circular_use_error_names_the_file_and_line() {
     assert!(
         text.contains("Nothing was run."),
         "the error should be followed by Nothing was run.:\n{text}"
+    );
+}
+
+/// Every line between `paste` and `end paste` is gathered and run as one
+/// program, the way a script file is, so a whole block pasted from elsewhere
+/// arrives complete instead of being read one command at a time.
+#[test]
+fn paste_runs_a_whole_block_at_end_paste() {
+    // The teach block, with a blank line in the middle, is pasted in full. The
+    // command it defines works on the line after `end paste`.
+    assert_eq!(
+        answers(
+            "paste\nteach \"greet <name>\"\n\n    print \"hello <name>\"\nend\nend paste\ngreet \"Ada\"\nexit\n"
+        ),
+        vec!["hello Ada"]
+    );
+}
+
+#[test]
+fn paste_shows_errors_with_a_line_number_inside_the_pasted_text() {
+    let text = typed("paste\nprint \"one\"\nfrobnicate\nend paste\nexit\n");
+    assert!(
+        text.contains("Line 2:"),
+        "the error should name the line within the pasted text:\n{text}"
+    );
+    assert!(
+        text.contains("frobnicate"),
+        "the error should name the unknown command:\n{text}"
+    );
+}
+
+#[test]
+fn history_lists_the_lines_typed_this_session() {
+    let text = typed("print 1\nprint 2\nhistory\nexit\n");
+    assert!(
+        text.contains("print 1") && text.contains("print 2"),
+        "history should list the earlier lines:\n{text}"
+    );
+    assert!(
+        text.contains("history"),
+        "history should list the history line too:\n{text}"
+    );
+}
+
+#[test]
+fn history_with_a_count_shows_only_the_last_lines() {
+    let text = typed("print 1\nprint 2\nprint 3\nhistory 2\nexit\n");
+    assert!(
+        text.contains("print 3"),
+        "history 2 should show the most recent line:\n{text}"
+    );
+    assert!(
+        !text.contains("print 1"),
+        "history 2 should not show the oldest line:\n{text}"
+    );
+}
+
+#[test]
+fn paste_mode_uses_the_continuation_prompt() {
+    // With a terminal the paste prompt is `... `; piped input cannot show the
+    // prompt, so this only checks the block still runs.
+    assert_eq!(
+        answers("paste\nprint \"pasted\"\nend paste\nexit\n"),
+        vec!["pasted"]
     );
 }

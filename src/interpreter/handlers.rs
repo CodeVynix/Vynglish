@@ -44,6 +44,8 @@ pub fn lookup(name: &str) -> Option<Handler> {
         "repl::license" => repl_license,
         "repl::exit" => repl_exit,
         "repl::quit" => repl_exit,
+        "repl::paste" => repl_paste,
+        "repl::history" => repl_history,
         "math::power" => power,
         "math::factorial" => factorial,
         "math::sqrt" => sqrt,
@@ -357,6 +359,14 @@ fn repl_license(_: &mut Session, _: &[Arg]) -> Value {
 }
 
 fn repl_exit(_: &mut Session, _: &[Arg]) -> Value {
+    Value::Bool(true)
+}
+
+fn repl_paste(_: &mut Session, _: &[Arg]) -> Value {
+    Value::Bool(true)
+}
+
+fn repl_history(_: &mut Session, _: &[Arg]) -> Value {
     Value::Bool(true)
 }
 

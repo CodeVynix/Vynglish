@@ -691,6 +691,30 @@ usage = "quit"
 example = "quit"
 error_msg = "Usage: quit"
 
+[[commands]]
+name = "paste"
+module = "repl"
+pattern = "paste"
+role = "command"
+repl_only = true
+handler = "repl::paste"
+description = "Gather lines until 'end paste', then run them as one program, like a script file."
+usage = "paste\n    ...\nend paste"
+example = "paste\nprint \"hello\"\nend paste"
+error_msg = "Usage: paste ... end paste"
+
+[[commands]]
+name = "history"
+module = "repl"
+pattern = "history"
+role = "command"
+repl_only = true
+handler = "repl::history"
+description = "Show the lines you have typed this session, numbered. 'history <n>' shows the last n."
+usage = "history\nhistory <n>"
+example = "history\nhistory 5"
+error_msg = "Usage: history [count]"
+
 # ---------- asking the system for something ----------
 #
 # Every ability a program can reach is named here, so the boundary between the
