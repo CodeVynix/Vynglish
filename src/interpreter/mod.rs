@@ -135,9 +135,12 @@ impl Session {
         }
     }
 
-    /// Clear the Ctrl-C flag, which the REPL does before every prompt.
-    pub fn reset_ctrl_c(&self) {
+    /// Forget any Ctrl-C: the raw signal flag and the "a program was stopped"
+    /// mark together, because leaving the second set would cancel the next
+    /// command before it ran. Done before every prompt and before every command.
+    pub fn clear_interrupt(&mut self) {
         self.ctrl_c.store(false, Ordering::Relaxed);
+        self.interrupted = false;
     }
 
     pub fn ctrl_c_pressed(&self) -> bool {
@@ -345,6 +348,10 @@ impl Session {
 
     /// Run a program that has already been checked.
     pub fn run_program(&mut self, program: Program) -> Result<(), Vec<Error>> {
+        // A command always starts un-cancelled: a Ctrl-C pressed while the
+        // prompt sat waiting, or an earlier program that was stopped, must not
+        // leak into this one.
+        self.clear_interrupt();
         let mut statements = program.statements;
         self.remember_teaches(&statements);
 
@@ -755,7 +762,7 @@ mod tests {
     use super::*;
     use std::sync::mpsc;
     use std::thread;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     /// Run `source` on its own thread while another thread presses Ctrl-C a
     /// tenth of a second in. Panics if the program has not stopped within two
@@ -794,6 +801,57 @@ mod tests {
         assert!(
             stopped_after_ctrl_c("wait 5 seconds"),
             "a wait should report that it was interrupted"
+        );
+    }
+
+    #[test]
+    fn a_command_after_an_interrupt_still_runs() {
+        // The bug: once a command was stopped, the session remembered that
+        // forever, so the very next `wait` was cancelled the instant it began
+        // and returned at once. A restart forgot it, which is why a fresh REPL
+        // waited properly.
+        let mut session = Session::with_io(Io::capturing());
+        let flag = Arc::clone(&session.ctrl_c);
+        let presser = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(100));
+            flag.store(true, Ordering::Relaxed);
+        });
+
+        let _ = session.run_source("repeat 1000000000 times\n    set x to 1\nend", Mode::Script);
+        presser.join().expect("the Ctrl-C thread should finish");
+        assert!(
+            session.was_interrupted(),
+            "the loop should have reported being interrupted"
+        );
+
+        let start = Instant::now();
+        let _ = session.run_source("wait 2 seconds", Mode::Script);
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed >= Duration::from_millis(1900),
+            "the wait after an interrupt was skipped: it took {elapsed:?}"
+        );
+    }
+
+    #[test]
+    fn wait_does_not_overshoot() {
+        // A sleep may overrun; the old code added up the slices, so many
+        // overruns stacked and a 5 second wait took 7 on a console with a
+        // coarse timer. Measuring against a deadline bounds the total. The
+        // process here has a fine timer, so the old code overran only a little
+        // and this bound catches the coarse-timer overshoot rather than a small
+        // one; it is a guarantee on the behaviour, not a strict regression.
+        let mut session = Session::with_io(Io::capturing());
+        let start = Instant::now();
+        let _ = session.run_source("wait 2 seconds", Mode::Script);
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed >= Duration::from_millis(1900),
+            "the wait was too short: {elapsed:?}"
+        );
+        assert!(
+            elapsed <= Duration::from_millis(2600),
+            "the wait overshot: it took {elapsed:?} for two seconds"
         );
     }
 }

@@ -257,20 +257,26 @@ fn logic_not(_: &mut Session, args: &[Arg]) -> Value {
 }
 
 /// `wait` pauses for a while so a long loop can still be stopped.
+///
+/// It sleeps in short slices and checks the flag between them, but the total is
+/// measured against a deadline rather than by adding up the slices: a sleep can
+/// overrun, and summing many slices of 20 ms used to turn 5 seconds into 7.
 fn wait(session: &mut Session, args: &[Arg]) -> Value {
     let seconds = Arg::value_at(args, 0)
         .as_f64()
         .unwrap_or(0.0)
         .clamp(0.0, 60.0);
-    let step = std::time::Duration::from_millis(20);
-    let whole = std::time::Duration::from_secs_f64(seconds);
-    let mut waited = std::time::Duration::ZERO;
-    while waited < whole {
+    let slice = std::time::Duration::from_millis(20);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs_f64(seconds);
+    loop {
         if session.cancelled() {
             break;
         }
-        std::thread::sleep(step);
-        waited += step;
+        let now = std::time::Instant::now();
+        if now >= deadline {
+            break;
+        }
+        std::thread::sleep((deadline - now).min(slice));
     }
     Value::Undefined
 }

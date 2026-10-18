@@ -134,9 +134,9 @@ impl Repl {
     /// back to the plain one when it does.
     fn read_line(&mut self, in_help: bool) -> Option<String> {
         loop {
-            // Each prompt starts with the flag clear, so an old Ctrl-C cannot
-            // stop the next command.
-            self.session.ctrl_c.store(false, Ordering::Relaxed);
+            // Each prompt starts with no Ctrl-C remembered, so one pressed
+            // while the prompt waited cannot stop the next command.
+            self.session.clear_interrupt();
             match self.editor.readline(self.prompt(in_help)) {
                 Ok(line) => {
                     if line.chars().all(|character| character == CTRL_Z) {
@@ -183,7 +183,7 @@ impl Repl {
     /// program. The same happens inside paste mode and inside `help>`, because
     /// each of those keeps its own sort of half finished input.
     fn on_interrupt(&mut self) {
-        self.session.reset_ctrl_c();
+        self.session.clear_interrupt();
         self.pending.clear();
         self.paste = PasteMode::Off;
     }
@@ -353,7 +353,7 @@ impl Repl {
         }
 
         if self.session.was_interrupted() {
-            self.session.reset_ctrl_c();
+            self.session.clear_interrupt();
         }
     }
 
