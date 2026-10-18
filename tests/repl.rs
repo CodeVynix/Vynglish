@@ -169,7 +169,7 @@ fn the_banner_is_two_lines_and_names_the_tools() {
     );
     assert_eq!(
         lines[1],
-        "Type \"help\", \"history\" or \"paste\", or press F1, F2 or F3. \"copyright\", \"credits\" or \"license\" for more."
+        "Type \"help\", \"copyright\", \"credits\" or \"license\" for more information."
     );
 }
 

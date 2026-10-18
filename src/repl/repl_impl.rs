@@ -556,7 +556,7 @@ fn role_of_line(table: &PatternTable, session: &Session, line: &Line) -> Option<
 pub fn banner() -> String {
     format!(
         "Vynglish {} (main, {}) [{}] on {}\n\
-         Type \"help\", \"history\" or \"paste\", or press F1, F2 or F3. \"copyright\", \"credits\" or \"license\" for more.\n",
+         Type \"help\", \"copyright\", \"credits\" or \"license\" for more information.\n",
         env!("CARGO_PKG_VERSION"),
         env!("VYNGLISH_BUILD_TIME"),
         env!("VYNGLISH_RUSTC"),
